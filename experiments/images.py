@@ -1,6 +1,15 @@
 import os
 import time
+import wandb
 
+# Set an environment variable
+os.environ['DATAROOT'] = '/Users/batuhankoyuncu/Documents/GitHub/Data'
+os.environ['DATASET_ROOT'] = '/Users/batuhankoyuncu/Documents/GitHub/Data'
+
+# Verify that the environment variable has been set
+print(os.environ['DATAROOT'])
+
+import json
 import numpy as np
 import scipy.misc
 import sacred
@@ -33,7 +42,10 @@ import matplotlib.pyplot as plt
 # Capture job id on the cluster
 sacred.SETTINGS.HOST_INFO.CAPTURED_ENV.append('SLURM_JOB_ID')
 
-runs_dir = os.path.join(utils.get_data_root(), 'runs/images')
+runs_dir = os.path.join(utils.get_data_root(), 'nsf_batu/experiments/runs/images')
+if not os.path.exists(runs_dir):
+    os.makedirs(runs_dir)
+
 ex = Experiment('decomposition-flows-images')
 
 fso = observers.FileStorageObserver.create(runs_dir, priority=1)
@@ -43,73 +55,104 @@ ex.observers.extend([fso, autils.NamingObserver(runs_dir, priority=2)])
 # For num_workers > 0 and tensor datasets, bad things happen otherwise.
 torch.multiprocessing.set_start_method("spawn", force=True)
 
-# noinspection PyUnusedLocal
+
+def load_config(filename):
+    with open(filename) as f:
+        return json.load(f)
+
 @ex.config
-def config():
-    # Dataset
-    dataset = 'fashion-mnist'
-    num_workers = 0
-    valid_frac = 0.01
+def my_config():
+    # Set the default JSON file
+    file_name = "cifar-10-8bit_cpu.json"
+    # file_name = "imagenet-64-8bit.json"
+    default_json = '/Users/batuhankoyuncu/Documents/GitHub/nsf_batu/experiments/image_configs/' + file_name
+    # Load the configuration from the default JSON file
+    config = load_config(default_json)
 
-    # Pre-processing
-    preprocessing = 'glow'
-    alpha = .05
-    num_bits = 8
-    pad = 2 # For mnist-like datasets
+# @ex.named_config
+# def cli_config():
+#     # Placeholder for command line JSON file
+#     file_name = "cifar-10-8bit.json"
+#     # file_name = "imagenet-64-8bit.json"
+#     json_file = '/Users/batuhankoyuncu/Documents/GitHub/nsf_batu/experiments/image_configs/' + file_name
 
-    # Model architecture
-    steps_per_level = 10
-    levels = 3
-    multi_scale=True
-    actnorm = True
+@ex.config_hook
+def hook(config, command_name, logger):
+    # if config.get('json_file'):
+        # Load configuration from the provided JSON file
+        # return load_config(config['/Users/batuhankoyuncu/Documents/GitHub/nsf/experiments/image_configs/imagenet-64-8bit.json'])
+    return config['config']
 
-    # Coupling transform
-    coupling_layer_type = 'rational_quadratic_spline'
-    spline_params = {
-        'num_bins': 4,
-        'tail_bound': 1.,
-        'min_bin_width': 1e-3,
-        'min_bin_height': 1e-3,
-        'min_derivative': 1e-3,
-        'apply_unconditional_transform': False
-    }
 
-    # Coupling transform net
-    hidden_channels = 256
-    use_resnet = False
-    num_res_blocks = 5 # If using resnet
-    resnet_batchnorm = True
-    dropout_prob = 0.
 
-    # Optimization
-    batch_size = 256
-    learning_rate = 5e-4
-    cosine_annealing = True
-    eta_min=0.
-    warmup_fraction = 0.
-    num_steps = 100000
-    temperatures = [0.5, 0.75, 1.]
 
-    # Training logistics
-    use_gpu = True
-    multi_gpu = False
-    run_descr = ''
-    flow_checkpoint = None
-    optimizer_checkpoint = None
-    start_step = 0
+# # noinspection PyUnusedLocal
+# @ex.config
+# def config():
+#     # Dataset
+#     dataset = 'fashion-mnist'
+#     num_workers = 0
+#     valid_frac = 0.01
 
-    intervals = {
-        'save': 1000,
-        'sample': 1000,
-        'eval': 1000,
-        'reconstruct': 1000,
-        'log': 10 # Very cheap.
-    }
+#     # Pre-processing
+#     preprocessing = 'glow'
+#     alpha = .05
+#     num_bits = 8
+#     pad = 2 # For mnist-like datasets
 
-    # For evaluation
-    num_samples = 64
-    samples_per_row = 8
-    num_reconstruct_batches = 10
+#     # Model architecture
+#     steps_per_level = 10
+#     levels = 3
+#     multi_scale=True
+#     actnorm = True
+
+#     # Coupling transform
+#     coupling_layer_type = 'rational_quadratic_spline'
+#     spline_params = {
+#         'num_bins': 4,
+#         'tail_bound': 1.,
+#         'min_bin_width': 1e-3,
+#         'min_bin_height': 1e-3,
+#         'min_derivative': 1e-3,
+#         'apply_unconditional_transform': False
+#     }
+
+#     # Coupling transform net
+#     hidden_channels = 256
+#     use_resnet = False
+#     num_res_blocks = 5 # If using resnet
+#     resnet_batchnorm = True
+#     dropout_prob = 0.
+
+#     # Optimization
+#     batch_size = 256
+#     learning_rate = 5e-4
+#     cosine_annealing = True
+#     eta_min=0.
+#     warmup_fraction = 0.
+#     num_steps = 100000
+#     temperatures = [0.5, 0.75, 1.]
+
+#     # Training logistics
+#     use_gpu = True
+#     multi_gpu = False
+#     run_descr = ''
+#     flow_checkpoint = None
+#     optimizer_checkpoint = None
+#     start_step = 0
+
+#     intervals = {
+#         'save': 1000,
+#         'sample': 1000,
+#         'eval': 1000,
+#         'reconstruct': 1000,
+#         'log': 10 # Very cheap.
+#     }
+
+#     # For evaluation
+#     num_samples = 64
+#     samples_per_row = 8
+#     num_reconstruct_batches = 10
 
 class ConvNet(nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels):
@@ -301,6 +344,16 @@ def train_flow(flow, train_dataset, val_dataset, dataset_dims, device,
                optimizer_checkpoint, start_step, eta_min, _log):
     run_dir = fso.dir
 
+    os.environ['WANDB_API_KEY'] = '1b1a95d81eb95b2bbead0c9e084568735d71fe73'
+    run = wandb.init(
+            dir= run_dir,
+            mode='online',
+            group=None,
+            project="NSF",
+            entity='koyuncu'
+            # project=f'{cfg.model.name}_{cfg.loss.name}_{cfg.dataset.name}',
+            # config=config,
+        )
     flow = flow.to(device)
 
     summary_writer = SummaryWriter(run_dir, max_queue=100)
@@ -396,11 +449,15 @@ def train_flow(flow, train_dataset, val_dataset, dataset_dims, device,
         if scheduler is not None:
             scheduler.step()
             summary_writer.add_scalar('learning_rate', scheduler.get_lr()[0], step)
+            wandb.log({'learning_rate':scheduler.get_lr()[0]},step=step)
 
         summary_writer.add_scalar('loss', loss.item(), step)
+        wandb.log({'loss':loss},step=step)
+        wandb.log({'nll':-torch.mean(log_density)},step=step)
 
         if best_val_log_prob:
             summary_writer.add_scalar('best_val_log_prob', best_val_log_prob, step)
+            wandb.log({'best_val_log_prob':best_val_log_prob},step=step)
 
         flow.eval() # Everything beyond this point is evaluation.
 
@@ -422,7 +479,9 @@ def train_flow(flow, train_dataset, val_dataset, dataset_dims, device,
                 ax.set_title('T={:.2f}'.format(temperature))
 
             summary_writer.add_figure(tag='samples', figure=fig, global_step=step)
-
+            # log_dir_image = summary_writer.logdir
+            wandb.log({ 'Sets Visual' : wandb.Image(fig) }) #THIS IS HOW YOU CAN LOG UNDER "Sets Visual" Panel in wandb
+            plt.savefig(f"{runs_dir}/batu_nsf_step_{step}")
             plt.close(fig)
 
         if step > 0 and step % intervals['eval'] == 0 and (val_loader is not None):
@@ -440,6 +499,8 @@ def train_flow(flow, train_dataset, val_dataset, dataset_dims, device,
 
             _log.info("It: {}/{} val_log_prob: {:.3f}".format(step, num_steps, val_log_prob))
             summary_writer.add_scalar('val_log_prob', val_log_prob, step)
+            wandb.log({'val_log_prob':val_log_prob},step=step)
+            
 
             if best_val_log_prob is None or val_log_prob > best_val_log_prob:
                 best_val_log_prob = val_log_prob
@@ -472,9 +533,11 @@ def train_flow(flow, train_dataset, val_dataset, dataset_dims, device,
             summary_writer.add_scalar(tag='max_reconstr_abs_diff',
                                       scalar_value=max_abs_diff.item(),
                                       global_step=step)
+            wandb.log({'max_reconstr_abs_diff':max_abs_diff.item()},step=step)
             summary_writer.add_scalar(tag='max_reconstr_logabsdet',
                                       scalar_value=max_logabsdet.item(),
                                       global_step=step)
+            wandb.log({'max_reconstr_logabsdet':max_logabsdet.item()},step=step)
 
 @ex.capture
 def set_device(use_gpu, multi_gpu, _log):

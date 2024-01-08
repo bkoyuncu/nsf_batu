@@ -131,6 +131,7 @@ log/*
 out/*
 checkpoints/*
 datasets/*
+experiments/*
 
 # tests
 *_trial_temp*
