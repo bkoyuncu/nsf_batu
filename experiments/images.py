@@ -46,7 +46,7 @@ runs_dir = os.path.join(utils.get_data_root(), 'nsf_batu/experiments/runs/images
 if not os.path.exists(runs_dir):
     os.makedirs(runs_dir)
 
-ex = Experiment('decomposition-flows-images')
+ex = Experiment('decomposition-flows-images', save_git_info=False)
 
 fso = observers.FileStorageObserver.create(runs_dir, priority=1)
 # I don't like how sacred names run folders.
@@ -449,15 +449,15 @@ def train_flow(flow, train_dataset, val_dataset, dataset_dims, device,
         if scheduler is not None:
             scheduler.step()
             summary_writer.add_scalar('learning_rate', scheduler.get_lr()[0], step)
-            wandb.log({'learning_rate':scheduler.get_lr()[0]},step=step)
+            wandb.log({'learning_rate':scheduler.get_lr()[0]})
 
         summary_writer.add_scalar('loss', loss.item(), step)
-        wandb.log({'loss':loss},step=step)
-        wandb.log({'nll':-torch.mean(log_density)},step=step)
+        wandb.log({'loss':loss})
+        wandb.log({'nll':-torch.mean(log_density)})
 
         if best_val_log_prob:
             summary_writer.add_scalar('best_val_log_prob', best_val_log_prob, step)
-            wandb.log({'best_val_log_prob':best_val_log_prob},step=step)
+            wandb.log({'best_val_log_prob':best_val_log_prob})
 
         flow.eval() # Everything beyond this point is evaluation.
 
@@ -499,7 +499,7 @@ def train_flow(flow, train_dataset, val_dataset, dataset_dims, device,
 
             _log.info("It: {}/{} val_log_prob: {:.3f}".format(step, num_steps, val_log_prob))
             summary_writer.add_scalar('val_log_prob', val_log_prob, step)
-            wandb.log({'val_log_prob':val_log_prob},step=step)
+            wandb.log({'val_log_prob':val_log_prob})
             
 
             if best_val_log_prob is None or val_log_prob > best_val_log_prob:
@@ -533,11 +533,11 @@ def train_flow(flow, train_dataset, val_dataset, dataset_dims, device,
             summary_writer.add_scalar(tag='max_reconstr_abs_diff',
                                       scalar_value=max_abs_diff.item(),
                                       global_step=step)
-            wandb.log({'max_reconstr_abs_diff':max_abs_diff.item()},step=step)
+            wandb.log({'max_reconstr_abs_diff':max_abs_diff.item()})
             summary_writer.add_scalar(tag='max_reconstr_logabsdet',
                                       scalar_value=max_logabsdet.item(),
                                       global_step=step)
-            wandb.log({'max_reconstr_logabsdet':max_logabsdet.item()},step=step)
+            wandb.log({'max_reconstr_logabsdet':max_logabsdet.item()})
 
 @ex.capture
 def set_device(use_gpu, multi_gpu, _log):
